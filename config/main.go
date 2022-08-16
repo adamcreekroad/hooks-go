@@ -8,6 +8,8 @@ import (
 
 func init() {
 	configureEnvironment()
+	configureRedis()
+	configureRouter()
 }
 
 func configureEnvironment() {

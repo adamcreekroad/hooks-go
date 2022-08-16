@@ -2,39 +2,23 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"net/http"
 
 	"github.com/adamcreekroad/hooks-go/config"
 	"github.com/adamcreekroad/hooks-go/plex"
+	"github.com/gin-gonic/gin"
 )
 
-func plex_hook(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/plex" {
-		http.Error(w, "404 not found.", http.StatusNotFound)
-		return
-	}
+func plex_hook(c *gin.Context) {
+	payload := c.PostForm("payload")
+	thumb, _ := c.FormFile("thumb")
 
-	if r.Method != "POST" {
-		http.Error(w, "404 not found.", http.StatusNotFound)
-	}
-
-	if err := r.ParseMultipartForm(r.ContentLength); err != nil {
-		fmt.Fprintf(w, "ParseForm() err: %v", err)
-		return
-	}
-
-	payload := r.FormValue("payload")
-
-	plex.ProcessHook(payload)
+	plex.ProcessHook(payload, thumb)
 }
 
 func main() {
-	http.HandleFunc("/plex", plex_hook)
+	config.Router.POST("/plex", plex_hook)
 
 	addr := fmt.Sprintf("%s:%s", config.Binding(), config.Port())
 
-	if err := http.ListenAndServe(addr, nil); err != nil {
-		log.Fatal(err)
-	}
+	config.Router.Run(addr)
 }

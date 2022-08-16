@@ -3,6 +3,7 @@ package plex
 import (
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"os"
 
 	"github.com/adamcreekroad/hooks-go/discord"
@@ -57,7 +58,7 @@ type event struct {
 
 var channel_id = os.Getenv("PLEX_DISCORD_CHANNEL_ID")
 
-func ProcessHook(p string) {
+func ProcessHook(p string, t *multipart.FileHeader) {
 	event := parse_payload(p)
 
 	message := discord.Payload{}
@@ -66,10 +67,10 @@ func ProcessHook(p string) {
 	case "library.new":
 		build_library_new_message(event, &message)
 	case "media.play":
-		build_media_play_message(event, &message)
+		build_media_play_message(event, &message, t)
 	}
 
-	discord.SendMessage(channel_id, message)
+	discord.SendMessage(channel_id, message, t)
 }
 
 func parse_payload(p string) event {
@@ -86,33 +87,41 @@ func build_library_new_message(e event, message *discord.Payload) {
 	message.Content = fmt.Sprintf("%s is now on Plex!", e.Metadata.Title)
 
 	message.Tts = false
-	message.Embeds = []discord.Embed{{Title: e.Metadata.Title, Description: e.Metadata.Summary}}
-}
-
-func build_media_play_message(e event, message *discord.Payload) {
-	switch e.Metadata.Type {
-	case "episode":
-		build_media_play_episode_message(e, message)
-	case "track":
-		build_media_play_track_message(e, message)
+	message.Embeds = []discord.Embed{
+		{Title: e.Metadata.Title, Description: e.Metadata.Summary},
 	}
 }
 
-func build_media_play_episode_message(e event, message *discord.Payload) {
+func build_media_play_message(e event, message *discord.Payload, t *multipart.FileHeader) {
+	switch e.Metadata.Type {
+	case "episode":
+		build_media_play_episode_message(e, message, t)
+	case "track":
+		build_media_play_track_message(e, message, t)
+	}
+}
+
+func build_media_play_episode_message(e event, message *discord.Payload, t *multipart.FileHeader) {
 	message.Content = fmt.Sprintf(
 		"%s is watching S%dE%d of %s",
 		e.Account.Title, e.Metadata.ParentIndex, e.Metadata.Index, e.Metadata.GrandparentTitle,
 	)
 
+	description := fmt.Sprintf("||%s||", e.Metadata.Summary)
+
+	url := fmt.Sprintf("attachment://%s", t.Filename)
+
 	message.Tts = false
-	message.Embeds = []discord.Embed{{Title: e.Metadata.Title, Description: e.Metadata.Summary}}
+	message.Embeds = []discord.Embed{{Title: e.Metadata.Title, Description: description, Thumbnail: discord.Thumbnail{Url: url}}}
 }
 
-func build_media_play_track_message(e event, message *discord.Payload) {
+func build_media_play_track_message(e event, message *discord.Payload, t *multipart.FileHeader) {
 	message.Content = fmt.Sprintf(
 		"%s is jammin' to %s by %s", e.Account.Title, e.Metadata.Title, e.Metadata.GrandparentTitle,
 	)
 
+	url := fmt.Sprintf("attachment://%s", t.Filename)
+
 	message.Tts = false
-	message.Embeds = []discord.Embed{{Title: e.Metadata.Title, Description: e.Metadata.Summary}}
+	message.Embeds = []discord.Embed{{Title: e.Metadata.Title, Description: e.Metadata.Summary, Thumbnail: discord.Thumbnail{Url: url}}}
 }
