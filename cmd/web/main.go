@@ -32,7 +32,7 @@ func plex_hook(w http.ResponseWriter, r *http.Request) {
 func main() {
 	http.HandleFunc("/plex", plex_hook)
 
-	addr := fmt.Sprintf(":%s", config.Port())
+	addr := fmt.Sprintf("%s:%s", config.Binding(), config.Port())
 
 	if err := http.ListenAndServe(addr, nil); err != nil {
 		log.Fatal(err)
