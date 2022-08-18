@@ -15,6 +15,14 @@ type Embed struct {
 	Title       string    `json:"title"`
 	Description string    `json:"description"`
 	Thumbnail   Thumbnail `json:"thumbnail"`
+	Author      Author    `json:"author"`
+	Fields      []Field   `json:"fields"`
+}
+
+type Field struct {
+	Name   string `json:"name"`
+	Value  string `json:"value"`
+	Inline bool   `json:"inline"`
 }
 
 type Payload struct {
@@ -25,6 +33,11 @@ type Payload struct {
 
 type Thumbnail struct {
 	Url string `json:"url"`
+}
+
+type Author struct {
+	Name    string `json:"name"`
+	IconUrl string `json:"icon_url"`
 }
 
 const api_url = "https://discord.com/api/v10"
