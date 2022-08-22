@@ -9,12 +9,16 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"path/filepath"
+
+	"github.com/adamcreekroad/hooks-go/config"
 )
 
 type Embed struct {
 	Title       string    `json:"title"`
 	Description string    `json:"description"`
 	Thumbnail   Thumbnail `json:"thumbnail"`
+	Image       Image     `json:"image"`
 	Author      Author    `json:"author"`
 	Fields      []Field   `json:"fields"`
 }
@@ -35,6 +39,10 @@ type Thumbnail struct {
 	Url string `json:"url"`
 }
 
+type Image struct {
+	Url string `json:"url"`
+}
+
 type Author struct {
 	Name    string `json:"name"`
 	IconUrl string `json:"icon_url"`
@@ -45,7 +53,7 @@ const content_type = "application/json; charset=UTF-8"
 
 var bot_token = os.Getenv("DISCORD_BOT_TOKEN")
 
-func SendMessage(channel_id string, payload Payload, t *multipart.FileHeader) {
+func SendMessage(channel_id string, payload Payload, f []*os.File) {
 	url := fmt.Sprintf("%s/channels/%s/messages", api_url, channel_id)
 	encoded, _ := json.Marshal(payload)
 
@@ -55,14 +63,15 @@ func SendMessage(channel_id string, payload Payload, t *multipart.FileHeader) {
 	part, _ := writer.CreateFormField("payload_json")
 	part.Write(encoded)
 
-	field, _ := writer.CreateFormFile("files[0]", t.Filename)
+	for index, file := range f {
+		filename, _ := filepath.Rel(config.CacheDir(), file.Name())
+		field, _ := writer.CreateFormFile(fmt.Sprintf("files[%d]", index), filename)
 
-	file, _ := t.Open()
+		_, err := io.Copy(field, file)
 
-	_, err := io.Copy(field, file)
-
-	if err != nil {
-		panic(err)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	writer.Close()

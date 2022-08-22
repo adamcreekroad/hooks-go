@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -36,4 +37,20 @@ func Port() string {
 	}
 
 	return port
+}
+
+func CacheDir() string {
+	cache_dir, present := os.LookupEnv("CACHE_DIR")
+
+	if !present {
+		cwd, _ := os.Getwd()
+
+		cache_dir = fmt.Sprintf("%s/cache", cwd)
+	}
+
+	if _, err := os.Stat(cache_dir); os.IsNotExist(err) {
+		os.Mkdir(cache_dir, 0755)
+	}
+
+	return cache_dir
 }
