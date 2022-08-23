@@ -107,11 +107,11 @@ func append_library_new_item(e event, t *os.File, p *discord.Payload) {
 func build_library_new_show_message(e event, message *discord.Payload, t *os.File) {
 	filename, _ := filepath.Rel(config.CacheDir(), t.Name())
 	url := fmt.Sprintf("attachment://%s", filename)
-	title := fmt.Sprintf("%s - Season %d", e.Metadata.Title, e.Metadata.Index)
+	title := fmt.Sprintf("Season %d", e.Metadata.Index)
 	description := fmt.Sprintf("**%d**  `%s`\n%s", e.Metadata.Year, e.Metadata.ContentRating, e.Metadata.Summary)
 
 	embed := discord.Embed{
-		Author:      discord.Author{Name: e.Metadata.GrandparentTitle},
+		Author:      discord.Author{Name: e.Metadata.Title},
 		Title:       title,
 		Description: description,
 		Thumbnail:   discord.Thumbnail{Url: url},
