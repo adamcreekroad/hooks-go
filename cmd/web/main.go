@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/adamcreekroad/hooks-go/config"
 	"github.com/adamcreekroad/hooks-go/plex"
@@ -12,7 +13,7 @@ func plex_hook(c *gin.Context) {
 	payload := c.PostForm("payload")
 	thumb, _ := c.FormFile("thumb")
 
-	fmt.Println(payload)
+	log.Println(payload)
 
 	plex.ProcessHook(payload, thumb)
 }

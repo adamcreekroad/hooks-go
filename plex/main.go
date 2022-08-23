@@ -161,7 +161,7 @@ func parse_payload(p string) event {
 	var result event
 
 	if err := json.Unmarshal([]byte(p), &result); err != nil {
-		fmt.Println("Err while parse JSON: ", err)
+		panic(err)
 	}
 
 	return result

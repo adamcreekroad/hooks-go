@@ -3,6 +3,7 @@ package plex
 import (
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"mime/multipart"
 	"os"
@@ -55,7 +56,10 @@ OUTER:
 
 		config.RedisConn.Del(config.RedisConn.Context(), fmt.Sprintf("plex:event:%s", id), fmt.Sprintf("plex:thumb:%s", id))
 		config.RedisConn.SRem(config.RedisConn.Context(), "plex:library.new", id)
-		os.Remove(filename)
+
+		if err := os.Remove(filename); err != nil {
+			log.Println("Failed to remove file: ", err)
+		}
 	}
 }
 
@@ -91,11 +95,29 @@ func fetch_event_ids() []string {
 
 func append_library_new_item(e event, t *os.File, p *discord.Payload) {
 	switch e.Metadata.Type {
+	case "show":
+		build_library_new_show_message(e, p, t)
 	case "episode":
 		build_library_new_episode_message(e, p, t)
 	case "movie":
 		build_library_new_movie_message(e, p, t)
 	}
+}
+
+func build_library_new_show_message(e event, message *discord.Payload, t *os.File) {
+	filename, _ := filepath.Rel(config.CacheDir(), t.Name())
+	url := fmt.Sprintf("attachment://%s", filename)
+	title := fmt.Sprintf("%s - Season %d", e.Metadata.Title, e.Metadata.Index)
+	description := fmt.Sprintf("**%d**  `%s`\n%s", e.Metadata.Year, e.Metadata.ContentRating, e.Metadata.Summary)
+
+	embed := discord.Embed{
+		Author:      discord.Author{Name: e.Metadata.GrandparentTitle},
+		Title:       title,
+		Description: description,
+		Thumbnail:   discord.Thumbnail{Url: url},
+	}
+
+	message.Embeds = append(message.Embeds, embed)
 }
 
 func build_library_new_episode_message(e event, message *discord.Payload, t *os.File) {
