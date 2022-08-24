@@ -22,7 +22,7 @@ func SendBulkLibraryNewMessage() {
 		return
 	}
 
-	message := discord.Payload{Content: "Recently added to Plex:", Tts: false, Embeds: []discord.Embed{}}
+	message := discord.Payload{Content: "New on Plex:", Tts: false, Embeds: []discord.Embed{}}
 
 	var events []event
 	var thumbs []*os.File
@@ -141,7 +141,8 @@ func build_library_new_movie_message(e event, message *discord.Payload, t *os.Fi
 	filename, _ := filepath.Rel(config.CacheDir(), t.Name())
 	url := fmt.Sprintf("attachment://%s", filename)
 	fields := []discord.Field{{Name: fmt.Sprintf("`%s`", e.Metadata.ContentRating), Value: e.Metadata.Summary}}
-	description := fmt.Sprintf("**%d**  %s", e.Metadata.Year, time.Duration(e.Metadata.Duration)*time.Millisecond)
+	// description := fmt.Sprintf("**%d**  %s", e.Metadata.Year, time.Duration(e.Metadata.Duration)*time.Millisecond)
+	description := fmt.Sprintf("**%d**", e.Metadata.Year)
 
 	embed := discord.Embed{
 		Title: e.Metadata.Title, Description: description, Thumbnail: discord.Thumbnail{Url: url}, Fields: fields,
