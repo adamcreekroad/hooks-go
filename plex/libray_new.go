@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"mime/multipart"
 	"os"
 	"path/filepath"
@@ -13,6 +12,13 @@ import (
 	"github.com/adamcreekroad/hooks-go/config"
 	"github.com/adamcreekroad/hooks-go/discord"
 	"github.com/gofrs/uuid"
+)
+
+const (
+	Show    = "show"
+	Episode = "episode"
+	Movie   = "movie"
+	Album   = "album"
 )
 
 func SendBulkLibraryNewMessage() {
@@ -37,6 +43,10 @@ OUTER:
 			if e.Metadata.GUID == event.Metadata.GUID {
 				continue OUTER
 			}
+		}
+
+		if !validate_media_type(event) {
+			return
 		}
 
 		thumb := fetch_cached_thumb(id)
@@ -64,6 +74,12 @@ OUTER:
 }
 
 func process_library_new_hook(p string, t *multipart.FileHeader) {
+	event := parse_payload(p)
+
+	if !validate_media_type(event) {
+		return
+	}
+
 	id, _ := uuid.NewV4()
 
 	file, err := t.Open()
@@ -85,6 +101,15 @@ func process_library_new_hook(p string, t *multipart.FileHeader) {
 	config.RedisConn.SAdd(config.RedisConn.Context(), "plex:library.new", id.String())
 }
 
+func validate_media_type(e event) bool {
+	switch e.Metadata.Type {
+	case Show, Episode, Movie:
+		return true
+	default:
+		return false
+	}
+}
+
 func fetch_event_ids() []string {
 	var ids []string
 
@@ -95,16 +120,16 @@ func fetch_event_ids() []string {
 
 func append_library_new_item(e event, t *os.File, p *discord.Payload) {
 	switch e.Metadata.Type {
-	case "show":
-		build_library_new_show_message(e, p, t)
-	case "episode":
-		build_library_new_episode_message(e, p, t)
-	case "movie":
-		build_library_new_movie_message(e, p, t)
+	case Show:
+		build_show_message(e, p, t)
+	case Episode:
+		build_episode_message(e, p, t)
+	case Movie:
+		build_movie_message(e, p, t)
 	}
 }
 
-func build_library_new_show_message(e event, message *discord.Payload, t *os.File) {
+func build_show_message(e event, message *discord.Payload, t *os.File) {
 	filename, _ := filepath.Rel(config.CacheDir(), t.Name())
 	url := fmt.Sprintf("attachment://%s", filename)
 	title := fmt.Sprintf("Season %d", e.Metadata.Index)
@@ -120,7 +145,7 @@ func build_library_new_show_message(e event, message *discord.Payload, t *os.Fil
 	message.Embeds = append(message.Embeds, embed)
 }
 
-func build_library_new_episode_message(e event, message *discord.Payload, t *os.File) {
+func build_episode_message(e event, message *discord.Payload, t *os.File) {
 	filename, _ := filepath.Rel(config.CacheDir(), t.Name())
 	url := fmt.Sprintf("attachment://%s", filename)
 	summary := fmt.Sprintf("||%s||", e.Metadata.Summary)
@@ -137,7 +162,7 @@ func build_library_new_episode_message(e event, message *discord.Payload, t *os.
 	message.Embeds = append(message.Embeds, embed)
 }
 
-func build_library_new_movie_message(e event, message *discord.Payload, t *os.File) {
+func build_movie_message(e event, message *discord.Payload, t *os.File) {
 	filename, _ := filepath.Rel(config.CacheDir(), t.Name())
 	url := fmt.Sprintf("attachment://%s", filename)
 	fields := []discord.Field{{Name: fmt.Sprintf("`%s`", e.Metadata.ContentRating), Value: e.Metadata.Summary}}
@@ -151,9 +176,24 @@ func build_library_new_movie_message(e event, message *discord.Payload, t *os.Fi
 	message.Embeds = append(message.Embeds, embed)
 }
 
-func seconds_to_human_time(seconds int32) string {
-	hours := math.Floor(float64((seconds%31536000)%86400) / 3600)
-	minutes := math.Floor(float64(((seconds%31536000)%86400)%3600) / 60)
+// func build_album_message(e event, message *discord.Payload, t *os.File) {
+// 	filename, _ := filepath.Rel(config.CacheDir(), t.Name())
+// 	url := fmt.Sprintf("attachment://%s", filename)
+// 	description := fmt.Sprintf("**%d**  %s", e.Metadata.Year, e.Metadata.Genre[0].Tag)
 
-	return fmt.Sprintf("%d hr %d min", int16(hours), int16(minutes))
-}
+// 	embed := discord.Embed{
+// 		Author:      discord.Author{Name: e.Metadata.ParentTitle},
+// 		Title:       e.Metadata.Title,
+// 		Description: description,
+// 		Thumbnail:   discord.Thumbnail{Url: url},
+// 	}
+
+// 	message.Embeds = append(message.Embeds, embed)
+// }
+
+// func seconds_to_human_time(seconds int32) string {
+// 	hours := math.Floor(float64((seconds%31536000)%86400) / 3600)
+// 	minutes := math.Floor(float64(((seconds%31536000)%86400)%3600) / 60)
+
+// 	return fmt.Sprintf("%d hr %d min", int16(hours), int16(minutes))
+// }
