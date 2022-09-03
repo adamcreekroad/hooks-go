@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -48,13 +47,12 @@ type Author struct {
 	IconUrl string `json:"icon_url"`
 }
 
-const api_url = "https://discord.com/api/v10"
-const content_type = "application/json; charset=UTF-8"
+const apiUrl = "https://discord.com/api/v10"
 
-var bot_token = os.Getenv("DISCORD_BOT_TOKEN")
+var botToken = os.Getenv("DISCORD_BOT_TOKEN")
 
-func SendMessage(channel_id string, payload Payload, f []*os.File) {
-	url := fmt.Sprintf("%s/channels/%s/messages", api_url, channel_id)
+func SendMessage(channelID string, payload Payload, f []*os.File) {
+	url := fmt.Sprintf("%s/channels/%s/messages", apiUrl, channelID)
 	encoded, _ := json.Marshal(payload)
 
 	body := &bytes.Buffer{}
@@ -78,29 +76,20 @@ func SendMessage(channel_id string, payload Payload, f []*os.File) {
 
 	request, _ := http.NewRequest("POST", url, body)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
-	request.Header.Set("Authorization", fmt.Sprintf("Bot %s", bot_token))
+	request.Header.Set("Authorization", fmt.Sprintf("Bot %s", botToken))
 
 	client := &http.Client{}
-	response, error := client.Do(request)
+	response, err := client.Do(request)
 
-	if error != nil {
-		panic(error)
+	if err != nil {
+		panic(err)
 	}
 
 	defer response.Body.Close()
 
 	if response.StatusCode >= 400 {
-		body, _ := ioutil.ReadAll(response.Body)
+		body, _ := io.ReadAll(response.Body)
 
 		fmt.Println("Failed to send Discord message: ", string(body))
 	}
-}
-
-type Media struct {
-	File   multipart.File
-	Header *multipart.FileHeader
-}
-
-func FileUrl(m Media) string {
-	return fmt.Sprintf("attachment://%s", m.Header.Filename)
 }

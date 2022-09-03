@@ -10,7 +10,7 @@ package plex
 // 		build_media_play_track_message(e, &message, t)
 // 	}
 
-// 	discord.SendMessage(channel_id, message, t)
+// 	discord.SendMessage(discordChannelID, message, t)
 // }
 
 // func build_media_play_episode_message(e event, message *discord.Payload, t *multipart.FileHeader) {

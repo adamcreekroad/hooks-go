@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func plex_hook(c *gin.Context) {
+func plexHook(c *gin.Context) {
 	payload := c.PostForm("payload")
 	thumb, _ := c.FormFile("thumb")
 
@@ -19,7 +19,7 @@ func plex_hook(c *gin.Context) {
 }
 
 func main() {
-	config.Router.POST("/plex", plex_hook)
+	config.Router.POST("/plex", plexHook)
 
 	addr := fmt.Sprintf("%s:%s", config.Binding(), config.Port())
 

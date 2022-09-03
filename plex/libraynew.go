@@ -2,8 +2,6 @@ package plex
 
 import (
 	"fmt"
-	"io"
-	"log"
 	"mime/multipart"
 	"os"
 	"path/filepath"
@@ -22,9 +20,9 @@ const (
 )
 
 func SendBulkLibraryNewMessage() {
-	ids := fetch_event_ids()
+	payloads := fetchCachedPayloads()
 
-	if len(ids) == 0 {
+	if len(payloads) == 0 {
 		return
 	}
 
@@ -34,74 +32,47 @@ func SendBulkLibraryNewMessage() {
 	var thumbs []*os.File
 
 OUTER:
-	for _, id := range ids {
-		event := fetch_cached_payload(id)
-
-		for _, e := range events {
+	for _, payload := range payloads {
+		for _, event := range events {
 
 			// Ignore duplicates
-			if e.Metadata.GUID == event.Metadata.GUID {
+			if event.Metadata.GUID == payload.Event.Metadata.GUID {
 				continue OUTER
 			}
 		}
 
-		if !validate_media_type(event) {
+		if !validateMediaType(payload.Event) {
 			return
 		}
 
-		thumb := fetch_cached_thumb(id)
+		events = append(events, payload.Event)
+		thumbs = append(thumbs, payload.Thumb)
 
-		events = append(events, event)
-		thumbs = append(thumbs, thumb)
-
-		append_library_new_item(event, thumb, &message)
+		appendLibraryNewItem(payload.Event, payload.Thumb, &message)
 	}
 
-	discord.SendMessage(channel_id, message, thumbs)
-
-	for _, id := range ids {
-		result := config.RedisConn.Get(config.RedisConn.Context(), fmt.Sprintf("plex:thumb:%s", id))
-
-		filename := result.Val()
-
-		config.RedisConn.Del(config.RedisConn.Context(), fmt.Sprintf("plex:event:%s", id), fmt.Sprintf("plex:thumb:%s", id))
-		config.RedisConn.SRem(config.RedisConn.Context(), "plex:library.new", id)
-
-		if err := os.Remove(filename); err != nil {
-			log.Println("Failed to remove file: ", err)
-		}
+	if len(events) > 0 {
+		discord.SendMessage(discordChannelID, message, thumbs)
 	}
+
+	clearCachedThumbs(payloads)
 }
 
-func process_library_new_hook(p string, t *multipart.FileHeader) {
-	event := parse_payload(p)
+func processLibraryNewHook(p string, t *multipart.FileHeader) {
+	event := parsePayload(p)
 
-	if !validate_media_type(event) {
+	if !validateMediaType(event) {
 		return
 	}
 
 	id, _ := uuid.NewV4()
 
-	file, err := t.Open()
+	payload := Payload[*multipart.FileHeader]{ID: id, Event: event, Thumb: t}
 
-	if err != nil {
-		panic(err)
-	}
-
-	filename := fmt.Sprintf("%s/plex-thumb-%s%s", config.CacheDir(), id, filepath.Ext(t.Filename))
-
-	bytes, _ := io.ReadAll(file)
-
-	if err := os.WriteFile(filename, bytes, 0644); err != nil {
-		panic(err)
-	}
-
-	config.RedisConn.Set(config.RedisConn.Context(), fmt.Sprintf("plex:event:%s", id.String()), p, 0)
-	config.RedisConn.Set(config.RedisConn.Context(), fmt.Sprintf("plex:thumb:%s", id.String()), filename, 0)
-	config.RedisConn.SAdd(config.RedisConn.Context(), "plex:library.new", id.String())
+	cachePayload(payload)
 }
 
-func validate_media_type(e event) bool {
+func validateMediaType(e event) bool {
 	switch e.Metadata.Type {
 	case Show, Episode, Movie:
 		return true
@@ -110,26 +81,24 @@ func validate_media_type(e event) bool {
 	}
 }
 
-func fetch_event_ids() []string {
-	var ids []string
-
-	config.RedisConn.SMembers(config.RedisConn.Context(), "plex:library.new").ScanSlice(&ids)
-
-	return ids
-}
-
-func append_library_new_item(e event, t *os.File, p *discord.Payload) {
-	switch e.Metadata.Type {
-	case Show:
-		build_show_message(e, p, t)
-	case Episode:
-		build_episode_message(e, p, t)
-	case Movie:
-		build_movie_message(e, p, t)
+func clearCachedThumbs(payloads []Payload[*os.File]) {
+	for _, payload := range payloads {
+		os.Remove(payload.Thumb.Name())
 	}
 }
 
-func build_show_message(e event, message *discord.Payload, t *os.File) {
+func appendLibraryNewItem(e event, t *os.File, p *discord.Payload) {
+	switch e.Metadata.Type {
+	case Show:
+		buildShowMessage(e, p, t)
+	case Episode:
+		buildEpisodeMessage(e, p, t)
+	case Movie:
+		buildMovieMessage(e, p, t)
+	}
+}
+
+func buildShowMessage(e event, message *discord.Payload, t *os.File) {
 	filename, _ := filepath.Rel(config.CacheDir(), t.Name())
 	url := fmt.Sprintf("attachment://%s", filename)
 	title := fmt.Sprintf("Season %d", e.Metadata.Index)
@@ -145,7 +114,7 @@ func build_show_message(e event, message *discord.Payload, t *os.File) {
 	message.Embeds = append(message.Embeds, embed)
 }
 
-func build_episode_message(e event, message *discord.Payload, t *os.File) {
+func buildEpisodeMessage(e event, message *discord.Payload, t *os.File) {
 	filename, _ := filepath.Rel(config.CacheDir(), t.Name())
 	url := fmt.Sprintf("attachment://%s", filename)
 	summary := fmt.Sprintf("||%s||", e.Metadata.Summary)
@@ -162,7 +131,7 @@ func build_episode_message(e event, message *discord.Payload, t *os.File) {
 	message.Embeds = append(message.Embeds, embed)
 }
 
-func build_movie_message(e event, message *discord.Payload, t *os.File) {
+func buildMovieMessage(e event, message *discord.Payload, t *os.File) {
 	filename, _ := filepath.Rel(config.CacheDir(), t.Name())
 	url := fmt.Sprintf("attachment://%s", filename)
 	fields := []discord.Field{{Name: fmt.Sprintf("`%s`", e.Metadata.ContentRating), Value: e.Metadata.Summary}}
@@ -176,7 +145,7 @@ func build_movie_message(e event, message *discord.Payload, t *os.File) {
 	message.Embeds = append(message.Embeds, embed)
 }
 
-// func build_album_message(e event, message *discord.Payload, t *os.File) {
+// func buildAlbumMessage(e event, message *discord.Payload, t *os.File) {
 // 	filename, _ := filepath.Rel(config.CacheDir(), t.Name())
 // 	url := fmt.Sprintf("attachment://%s", filename)
 // 	description := fmt.Sprintf("**%d**  %s", e.Metadata.Year, e.Metadata.Genre[0].Tag)

@@ -7,18 +7,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-func init() {
-	configureEnvironment()
-	configureRedis()
-	configureRouter()
-}
-
-func configureEnvironment() {
-	if err := godotenv.Load(); err != nil {
-		panic(err)
-	}
-}
-
 func Binding() string {
 	binding, present := os.LookupEnv("BINDING")
 
@@ -40,17 +28,29 @@ func Port() string {
 }
 
 func CacheDir() string {
-	cache_dir, present := os.LookupEnv("CACHE_DIR")
+	cacheDir, present := os.LookupEnv("CACHE_DIR")
 
 	if !present {
 		cwd, _ := os.Getwd()
 
-		cache_dir = fmt.Sprintf("%s/cache", cwd)
+		cacheDir = fmt.Sprintf("%s/cache", cwd)
 	}
 
-	if _, err := os.Stat(cache_dir); os.IsNotExist(err) {
-		os.Mkdir(cache_dir, 0755)
+	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
+		os.Mkdir(cacheDir, 0755)
 	}
 
-	return cache_dir
+	return cacheDir
+}
+
+func init() {
+	configureEnvironment()
+	configureRedis()
+	configureRouter()
+}
+
+func configureEnvironment() {
+	if err := godotenv.Load(); err != nil {
+		panic(err)
+	}
 }

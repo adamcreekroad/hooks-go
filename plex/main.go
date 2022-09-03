@@ -3,11 +3,14 @@ package plex
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/adamcreekroad/hooks-go/config"
+	"github.com/gofrs/uuid"
 )
 
 type event struct {
@@ -116,48 +119,76 @@ type event struct {
 	} `json:"metadata"`
 }
 
-type Payload struct {
+type Payload[T any] struct {
+	ID    uuid.UUID
 	Event event
-	Thumb *os.File
+	Thumb T
 }
 
-var channel_id = os.Getenv("PLEX_DISCORD_CHANNEL_ID")
+type payloadJSON struct {
+	ID        uuid.UUID `json:"id"`
+	Event     event     `json:"event"`
+	ThumbPath string    `json:"thumb_path"`
+}
 
-const WHITESPACE_CHAR = "\u200b"
+var discordChannelID = os.Getenv("PLEX_DISCORD_CHANNEL_ID")
 
 func ProcessHook(p string, t *multipart.FileHeader) {
-	event := parse_payload(p)
+	event := parsePayload(p)
 
 	switch event.Event {
 	case "library.new":
-		process_library_new_hook(p, t)
+		processLibraryNewHook(p, t)
 	}
 }
 
-func cache_payload(uuid string, p string) {
-
-}
-
-func fetch_cached_payload(uuid string) event {
-	raw_event := config.RedisConn.Get(config.RedisConn.Context(), fmt.Sprintf("plex:event:%s", uuid)).Val()
-	event := parse_payload(raw_event)
-
-	return event
-}
-
-func fetch_cached_thumb(uuid string) *os.File {
-	filename := config.RedisConn.Get(config.RedisConn.Context(), fmt.Sprintf("plex:thumb:%s", uuid)).Val()
-
-	thumb, err := os.Open(filename)
+func cachePayload(p Payload[*multipart.FileHeader]) {
+	file, err := p.Thumb.Open()
 
 	if err != nil {
 		panic(err)
 	}
 
-	return thumb
+	filename := fmt.Sprintf("%s/plex-thumb-%s%s", config.CacheDir(), p.ID, filepath.Ext(p.Thumb.Filename))
+
+	bytes, _ := io.ReadAll(file)
+
+	if err := os.WriteFile(filename, bytes, 0644); err != nil {
+		panic(err)
+	}
+
+	data, _ := json.Marshal(payloadJSON{ID: p.ID, Event: p.Event, ThumbPath: filename})
+
+	config.RedisConn.RPush(config.RedisConn.Context(), "plex:library.new", data)
 }
 
-func parse_payload(p string) event {
+func fetchCachedPayloads() []Payload[*os.File] {
+	var payloads []Payload[*os.File]
+
+	payloadCount := config.RedisConn.LLen(config.RedisConn.Context(), "plex:library.new").Val()
+
+	for i := 0; i < int(payloadCount); i++ {
+		var payload payloadJSON
+
+		rawPayload := config.RedisConn.LPop(config.RedisConn.Context(), "plex:library.new").Val()
+
+		if err := json.Unmarshal([]byte(rawPayload), &payload); err != nil {
+			panic(err)
+		}
+
+		thumb, err := os.Open(payload.ThumbPath)
+
+		if err != nil {
+			panic(err)
+		}
+
+		payloads = append(payloads, Payload[*os.File]{ID: payload.ID, Event: payload.Event, Thumb: thumb})
+	}
+
+	return payloads
+}
+
+func parsePayload(p string) event {
 	var result event
 
 	if err := json.Unmarshal([]byte(p), &result); err != nil {
