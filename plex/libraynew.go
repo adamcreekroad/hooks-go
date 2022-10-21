@@ -5,7 +5,6 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/adamcreekroad/hooks-go/config"
 	"github.com/adamcreekroad/hooks-go/discord"
@@ -101,12 +100,11 @@ func appendLibraryNewItem(e event, t *os.File, p *discord.Payload) {
 func buildShowMessage(e event, message *discord.Payload, t *os.File) {
 	filename, _ := filepath.Rel(config.CacheDir(), t.Name())
 	url := fmt.Sprintf("attachment://%s", filename)
-	title := fmt.Sprintf("Season %d", e.Metadata.Index)
-	description := fmt.Sprintf("**%d**  `%s`\n%s", e.Metadata.Year, e.Metadata.ContentRating, e.Metadata.Summary)
+	description := fmt.Sprintf("**%d**\n**`%s`**\n\n%s", e.Metadata.Year, e.Metadata.ContentRating, e.Metadata.Summary)
 
 	embed := discord.Embed{
-		Author:      discord.Author{Name: e.Metadata.Title},
-		Title:       title,
+		Author:      discord.Author{Name: e.Metadata.LibrarySectionTitle},
+		Title:       e.Metadata.Title,
 		Description: description,
 		Thumbnail:   discord.Thumbnail{Url: url},
 	}
@@ -117,13 +115,19 @@ func buildShowMessage(e event, message *discord.Payload, t *os.File) {
 func buildEpisodeMessage(e event, message *discord.Payload, t *os.File) {
 	filename, _ := filepath.Rel(config.CacheDir(), t.Name())
 	url := fmt.Sprintf("attachment://%s", filename)
-	summary := fmt.Sprintf("||%s||", e.Metadata.Summary)
-	title := fmt.Sprintf("S%d E%d - %s", e.Metadata.ParentIndex, e.Metadata.Index, e.Metadata.Title)
-	description := fmt.Sprintf("%s - `%s`\n%s", time.Duration(e.Metadata.Duration)*time.Millisecond, e.Metadata.ContentRating, summary)
+
+	var summary string
+	if e.Metadata.Summary != "" {
+		summary = fmt.Sprintf("||%s||", e.Metadata.Summary)
+	} else {
+		summary = "No summary available."
+	}
+
+	description := fmt.Sprintf("**Season %d**\n**Episode %d · %s**\n**`%s`**\n\n%s", e.Metadata.ParentIndex, e.Metadata.Index, e.Metadata.Title, e.Metadata.ContentRating, summary)
 
 	embed := discord.Embed{
-		Author:      discord.Author{Name: e.Metadata.GrandparentTitle},
-		Title:       title,
+		Author:      discord.Author{Name: e.Metadata.LibrarySectionTitle},
+		Title:       e.Metadata.GrandparentTitle,
 		Description: description,
 		Thumbnail:   discord.Thumbnail{Url: url},
 	}
@@ -134,12 +138,15 @@ func buildEpisodeMessage(e event, message *discord.Payload, t *os.File) {
 func buildMovieMessage(e event, message *discord.Payload, t *os.File) {
 	filename, _ := filepath.Rel(config.CacheDir(), t.Name())
 	url := fmt.Sprintf("attachment://%s", filename)
-	fields := []discord.Field{{Name: fmt.Sprintf("`%s`", e.Metadata.ContentRating), Value: e.Metadata.Summary}}
-	// description := fmt.Sprintf("**%d**  %s", e.Metadata.Year, time.Duration(e.Metadata.Duration)*time.Millisecond)
-	description := fmt.Sprintf("**%d**", e.Metadata.Year)
+	// TODO: Get the duration nicely formatted
+	// duration := time.Duration(e.Metadata.Duration)*time.Millisecond
+	description := fmt.Sprintf("**%d**\n**`%s`**\n\n%s", e.Metadata.Year, e.Metadata.ContentRating, e.Metadata.Summary)
 
 	embed := discord.Embed{
-		Title: e.Metadata.Title, Description: description, Thumbnail: discord.Thumbnail{Url: url}, Fields: fields,
+		Author:      discord.Author{Name: e.Metadata.LibrarySectionTitle},
+		Title:       e.Metadata.Title,
+		Description: description,
+		Thumbnail:   discord.Thumbnail{Url: url},
 	}
 
 	message.Embeds = append(message.Embeds, embed)
