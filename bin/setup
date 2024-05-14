@@ -1,0 +1,9 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'fileutils'
+
+unless File.exist?('.env.development')
+  FileUtils.cp('.env.example', '.env.development')
+end
+
