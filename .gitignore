@@ -35,3 +35,6 @@ tmp/
 
 # Ignore cache
 cache/
+
+# Ignore compiled binaries
+bin/hooks*

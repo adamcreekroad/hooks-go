@@ -4,6 +4,16 @@ Webhook handler/processor written in Go.
 
 As of right now, it only ingests plex webhooks for the `library.new` event, and will send messages to the specified discord channel for all items when running the notifier command.
 
+## Installation
+
+Installation requires Ruby for scripting, and the application itself requires Go to run.
+
+1. Clone or download this repo into `/opt/hooks`
+2. Copy the `.env.example` into `.env` and configure it to your needs
+3. Run `./bin/install`
+
+This will create and start a systemd service for the webserver, as well as add a cron job for the notifier.
+
 ## Local Development
 
 ### Setup

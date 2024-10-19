@@ -1,0 +1,50 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'fileutils'
+
+install_dir = Dir.pwd
+data_dir = '/var/lib/hooks'
+user = 'hooks'
+group = 'hooks'
+
+puts('Creating directories...')
+FileUtils.mkdir_p(data_dir)
+FileUtils.mkdir_p(File.join(data_dir, 'log'))
+FileUtils.chown_R(user, group, install_dir)
+FileUtils.chown_R(user, group, data_dir)
+puts('Done')
+
+puts('Compiling binaries...')
+system(`go build -o ./bin/web ./cmd/web/main.go`)
+system(`go build -o ./bin/notifier ./cmd/notifier/main.go`)
+puts('Done')
+
+SYSTEMD_TEMPLATE = <<~TEXT
+  Description=Process Incoming Webhooks
+  After=network.target
+
+  [Service]
+  User=#{user}
+  Group=#{group}
+  WorkingDirectory=#{install_dir}
+  EnvironmentFile=#{install_dir}/.env
+  ExecStart=#{install_dir}/bin/web
+  StandardOutput=append:#{data_dir}/log/web.stdout.log
+  StandardError=append:#{data_dir}/log/web.stderr.log
+
+  [Install]
+  WantedBy=multi-user.target
+TEXT
+
+CRON_TEMPLATE = <<~TEXT
+  0 17 * * * cd #{install_dir} && #{install_dir}/bin/notifier >> #{data_dir}/log/notifier.log 2>&1
+TEXT
+
+puts('Creating services...')
+File.open('/etc/systemd/system/hooks-web.service', 'w+') { _1.write(SYSTEMD_TEMPLATE) }
+system(`systemctl daemon-reload && systemctl enable hooks-web.service && systemctl start hooks-web.service`)
+system(`(crontab -l -u hooks 2>/dev/null; echo "#{CRON_TEMPLATE}") | crontab -u hooks -`)
+puts('Done')
+
+puts('Install complete!')
